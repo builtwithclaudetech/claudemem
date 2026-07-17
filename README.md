@@ -403,5 +403,6 @@ tests/            # pytest suite
 ## Links
 
 - [Architecture](docs/ARCHITECTURE.md) — layered module graph, read-path firewall, data-flow paths
+- [How it was built](docs/how-it-was-built.md) — the post-mortem that drove the design, the spec-first pipeline, and the read-path firewall as a CI gate
 - [Security](SECURITY.md) — vulnerability disclosure and security model
 - [License](LICENSE) — MIT
