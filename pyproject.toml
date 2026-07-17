@@ -1,0 +1,128 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claudemem"
+version = "1.0.0"
+description = "Stateless, file-based memory system for Claude Code (lexical FTS5 core + write-time Haiku enrichment)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "builtwithclaudetech" }]
+keywords = [
+    "claude",
+    "claude-code",
+    "memory",
+    "sqlite",
+    "fts5",
+    "cli",
+    "llm",
+    "anthropic",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/builtwithclaudetech/claudemem"
+Repository = "https://github.com/builtwithclaudetech/claudemem"
+Issues = "https://github.com/builtwithclaudetech/claudemem/issues"
+
+[project.optional-dependencies]
+llm = ["anthropic"]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "import-linter",
+]
+
+[project.scripts]
+claudemem = "claudemem.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["claudemem"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# ---------------------------------------------------------------------------
+# import-linter — static enforcement of the L1->L4 layering (architecture §1,
+# §3.3) and the load-bearing read-path <-> enrich firewall (architecture §4.3b,
+# §3.4; PRD SC-6 / C-17). Runs as a CI gate via `lint-imports`.
+#
+# Not-yet-existing modules: several L1/L4 modules (`files`, `index`, `cli`,
+# `hooks`) and all sub-modules of `store`/`recall`/`enrich` land in Phases 3-5.
+# Two mechanisms keep this contract green today AND tightening automatically:
+#   1. Layers contract — every layer that is not yet a concrete module is
+#      wrapped in parentheses, which import-linter treats as OPTIONAL (a missing
+#      optional layer does not break the contract; layers.py docstring). The
+#      moment `claudemem/cli.py` etc. are added they are enforced with no edit
+#      here. `config` exists today so it is left non-optional as an anchor.
+#   2. Forbidden contract — `source_modules`/`forbidden_modules` are the
+#      PACKAGE roots `claudemem.recall` / `claudemem.enrich` (both exist today
+#      as packages). With the default `as_packages = true`, the contract covers
+#      every current and future sub-module (`recall.search`, `recall.get`, ...)
+#      automatically, so no per-sub-module listing is needed and the forbidden
+#      contract's "source module must exist in graph" check (forbidden.py
+#      `_check_all_modules_exist_in_graph`) is satisfied now.
+# `anthropic` is an external forbidden module, hence include_external_packages.
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "claudemem"
+include_external_packages = true
+
+# L1->L4 layering (architecture §1 diagram, §3.3 topological order):
+#   config (leaf) -> {files | index} -> store -> recall -> enrich -> {cli | hooks}
+# import-linter lists layers HIGHEST-first; the order below is the reverse of
+# the topological order. Same-rank peers that must not import each other use the
+# independent delimiter `|` (files/index, cli/hooks) per the adjacency list
+# (architecture §3.2): neither sibling depends on the other. Optional
+# (not-yet-existing) layers are wrapped in parentheses so a missing module does
+# not break the contract today and is enforced automatically once it exists.
+[[tool.importlinter.contracts]]
+name = "ClaudeMem L1->L4 layering (architecture §1, §3.3)"
+type = "layers"
+layers = [
+    "(cli) | (hooks)",
+    "(enrich)",
+    "(recall)",
+    "(store)",
+    "(files) | (index)",
+    "config",
+]
+containers = ["claudemem"]
+
+# The single most load-bearing rule: the read path may never reach a model
+# transport (architecture §4.1/§4.3b, §3.4 forbidden back-edge; SC-6, C-17).
+# `claudemem.recall` (package, as_packages=true => covers search/get/menu/
+# output/rank now and in future) must not import `claudemem.enrich` nor the
+# Anthropic SDK. A failure here is a forbidden `recall -> enrich` back-edge.
+[[tool.importlinter.contracts]]
+name = "Read-path firewall: recall must not reach enrich or anthropic (architecture §4.3b, SC-6/C-17)"
+type = "forbidden"
+source_modules = ["claudemem.recall"]
+forbidden_modules = [
+    "claudemem.enrich",
+    "anthropic",
+]

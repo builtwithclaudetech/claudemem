@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra llm
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Mypy
+        run: uv run mypy claudemem
+
+      - name: Import contracts
+        run: uv run lint-imports
+
+      - name: Pytest
+        run: uv run pytest
+
+      - name: PII gate (generic shapes only)
+        run: |
+          set -euo pipefail
+
+          # Scan only git-tracked files (never .venv/, build output, or
+          # caches). Patterns are assembled from split literals so this
+          # workflow file never contains the contiguous string it is itself
+          # scanning for, so it never needs to exclude its own path.
+          gmail_re='[A-Za-z0-9._%+-]+@gmail''\.com'
+          home_re='/home''/[A-Za-z0-9_.-]+'
+          srv_re='/sr''v/'
+
+          gmail_hits=$(git ls-files -z \
+            | xargs -0 grep -nIE "$gmail_re" 2>/dev/null \
+            | grep -vE 'user@example\.com|your-email@example\.com' || true)
+
+          home_hits=$(git ls-files -z \
+            | xargs -0 grep -nIE "$home_re" 2>/dev/null \
+            | grep -vE '/home/(you|runner|user)\b' || true)
+
+          srv_hits=$(git ls-files -z \
+            | xargs -0 grep -nIE "$srv_re" 2>/dev/null || true)
+
+          all_hits=$(printf '%s\n%s\n%s\n' "$gmail_hits" "$home_hits" "$srv_hits" | sed '/^\s*$/d')
+
+          if [ -n "$all_hits" ]; then
+            echo "$all_hits"
+            echo "FAIL: PII detected above."
+            exit 1
+          fi
+          echo "PII gate clean"
