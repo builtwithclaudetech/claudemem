@@ -95,7 +95,7 @@ def search(
     if not candidates:
         # No usable MATCH token (empty / punctuation-only query) → §4.3 says treat
         # as a relevance-floor miss and go straight to the Fork B archive.
-        return _archive_fallback(conn_b, query, settings, json=json)
+        return _archive_fallback(conn_b, query, settings, now_epoch=now_epoch, json=json)
 
     by_id = {rec.id: rec for rec in forka.active_set(conn_a, scope_ctx)}
 
@@ -126,7 +126,7 @@ def search(
     # surviving hit's *relevance* is below the relevance floor → the curated store
     # had no good match, so serve the raw activity archive instead.
     if not surviving or relevances[surviving[0].id] < ranking.relevance_floor:
-        return _archive_fallback(conn_b, query, settings, json=json)
+        return _archive_fallback(conn_b, query, settings, now_epoch=now_epoch, json=json)
 
     return output.serialize_search(surviving, json=json)
 
@@ -163,6 +163,7 @@ def _archive_fallback(
     query: str,
     settings: config.Settings,
     *,
+    now_epoch: int,
     json: bool,
 ) -> str:
     """Bounded lexical scan of the in-window Fork B archive (IN-3, §4.3).
@@ -179,9 +180,13 @@ def _archive_fallback(
     An empty/punctuation query (no tokens) or no matching rows yields the empty
     string — the same "no results" signal Fork A search returns, so the caller
     (and Claude) sees a clean empty result rather than an error (SC-3).
+
+    ``now_epoch`` is the caller's already-resolved "now" (:func:`search`'s
+    ``now_epoch`` param) and governs the archive window cutoff below — it must
+    stay the single clock for the whole request, not re-read from the wall clock.
     """
     tokens = _archive_tokens(query)
-    cutoff = int(time.time()) - settings.forkb.window_days * 86400
+    cutoff = now_epoch - settings.forkb.window_days * 86400
     if not tokens:
         rows = forkb.archive_recent(
             conn_b, cutoff_epoch=cutoff, limit=_ARCHIVE_RESULT_LIMIT
