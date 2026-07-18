@@ -7,6 +7,12 @@ ClaudeMem uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.1] - 2026-07-18
+
+### Fixed
+
+- **Fork B archive-window cutoff now uses the injected clock** — `_archive_fallback` computed its 45-day archive time-window cutoff from `int(time.time())` instead of the `now_epoch` that `search()` already resolves and threads through the rest of the request. This broke deterministic clock injection: as real wall-clock time drifted past the `window_days` default, the cutoff silently excluded archive rows that tests seed at a fixed `now_epoch`, causing `_archive_fallback` search results to go empty. `now_epoch` is now threaded into `_archive_fallback` so the whole request shares one clock. No behavior change for the production caller, which already resolves `now_epoch` to real wall-clock time; this only restores determinism for callers (the test suite) that inject a fixed `now_epoch`.
+
 ## [1.0.0] - 2026-06-01
 
 ### Added

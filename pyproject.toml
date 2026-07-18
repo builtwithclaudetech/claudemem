@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "claudemem"
-version = "1.0.0"
+version = "1.0.1"
 description = "Stateless, file-based memory system for Claude Code (lexical FTS5 core + write-time Haiku enrichment)."
 readme = "README.md"
 requires-python = ">=3.11"
