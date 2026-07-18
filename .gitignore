@@ -44,3 +44,7 @@ build/
 
 # Local PII denylist (private; never committed)
 /.pii-denylist
+
+# Phil's personal notes are secrets — never commit (standing rule)
+phil-notes.md
+phil-*.md
