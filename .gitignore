@@ -45,6 +45,10 @@ build/
 # Local PII denylist (private; never committed)
 /.pii-denylist
 
-# Phil's personal notes are secrets — never commit (standing rule)
-phil-notes.md
-phil-*.md
+# Local secrets-audit record (private; never committed)
+/.secrets-audit-pass.json
+
+# The owner's personal notes are secrets — never commit (standing rule)
+personal-notes.md
+personal-*.md
+/personal-info.md
